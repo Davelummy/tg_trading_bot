@@ -1,0 +1,39 @@
+[project]
+name = "tg_trading_bot"
+version = "0.1.0"
+description = "Telegram trading bot with server-side engine"
+requires-python = ">=3.11"
+readme = "README.md"
+license = "MIT"
+authors = [{name = "Codex"}]
+
+dependencies = [
+  "aiogram>=3.4.1",
+  "pydantic>=2.6.0",
+  "pydantic-settings>=2.2.1",
+  "loguru>=0.7.2",
+  "pandas>=2.2.0",
+  "python-binance>=1.0.19",
+  "httpx>=0.26.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "pytest-asyncio>=0.23.0",
+]
+mt5 = [
+  "MetaTrader5>=5.0.45; sys_platform == 'win32'",
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bot", "data", "risk", "engine", "backtest", "adapters", "services", "strategies"]
