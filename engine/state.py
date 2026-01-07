@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from data.store import SQLiteStore
+from data.store import BaseStore
 
 
 @dataclass
@@ -15,11 +15,12 @@ class EngineState:
 
 
 class EngineStateStore:
-    def __init__(self, store: SQLiteStore) -> None:
+    def __init__(self, store: BaseStore, user_id: int) -> None:
         self.store = store
+        self.user_id = user_id
 
     def load(self) -> EngineState:
-        row = self.store.get_engine_state()
+        row = self.store.get_engine_state(self.user_id)
         return EngineState(
             last_candle_ts=row.get("last_candle_ts"),
             last_error=row.get("last_error"),
@@ -29,4 +30,4 @@ class EngineStateStore:
 
     def update(self, **kwargs) -> None:
         kwargs["updated_at"] = int(time.time())
-        self.store.set_engine_state(**kwargs)
+        self.store.set_engine_state(self.user_id, **kwargs)

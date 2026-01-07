@@ -6,7 +6,7 @@ from typing import Any
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from data.store import SQLiteStore
+from data.store import BaseStore
 
 
 class BotSettings(BaseSettings):
@@ -35,6 +35,9 @@ class BotSettings(BaseSettings):
     SYMBOL_MAP: str = "{}"
     TELEGRAM_CHAT_ID: str = ""
     DATABASE_PATH: str = "./bot.db"
+    DATABASE_URL: str = ""
+    CREDENTIAL_ENCRYPTION_KEY: str = ""
+    ALLOW_ALL_USERS: bool = True
 
 
 class RuntimeConfig(BaseModel):
@@ -55,13 +58,13 @@ class RuntimeConfig(BaseModel):
 
 
 class ConfigService:
-    def __init__(self, store: SQLiteStore, base: BotSettings) -> None:
+    def __init__(self, store: BaseStore, base: BotSettings) -> None:
         self.store = store
         self.base = base
 
-    def load(self) -> RuntimeConfig:
+    def load(self, user_id: int) -> RuntimeConfig:
         def _get(key: str, default: Any) -> Any:
-            return self.store.get_setting(key, default)
+            return self.store.get_setting(user_id, key, default)
 
         symbol_map_raw = _get("SYMBOL_MAP", self.base.SYMBOL_MAP)
         try:
@@ -86,4 +89,7 @@ class ConfigService:
         )
 
     def update(self, key: str, value: Any) -> None:
-        self.store.set_setting(key, value)
+        raise ValueError("Use update_for_user")
+
+    def update_for_user(self, user_id: int, key: str, value: Any) -> None:
+        self.store.set_setting(user_id, key, value)

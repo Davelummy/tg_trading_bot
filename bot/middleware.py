@@ -14,6 +14,12 @@ def _is_admin(user_id: int, settings: BotSettings) -> bool:
     return user_id in ids
 
 
+def _is_allowed(user_id: int, settings: BotSettings) -> bool:
+    if settings.ALLOW_ALL_USERS:
+        return True
+    return _is_admin(user_id, settings)
+
+
 class AdminOnlyMiddleware(BaseMiddleware):
     def __init__(self, settings: BotSettings) -> None:
         self.settings = settings
@@ -24,7 +30,7 @@ class AdminOnlyMiddleware(BaseMiddleware):
             user = event.from_user
         elif isinstance(event, CallbackQuery):
             user = event.from_user
-        if user and not _is_admin(user.id, self.settings):
+        if user and not _is_allowed(user.id, self.settings):
             if isinstance(event, Message):
                 await event.answer("Access denied. This bot is admin-only.")
             elif isinstance(event, CallbackQuery):

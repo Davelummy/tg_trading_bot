@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from data.store import SQLiteStore
+from data.store import BaseStore
 from engine.models import OrderIntent, Signal
 from services.config_service import RuntimeConfig
 
@@ -17,12 +17,13 @@ class RiskDecision:
 
 
 class RiskManager:
-    def __init__(self, store: SQLiteStore) -> None:
+    def __init__(self, store: BaseStore) -> None:
         self.store = store
         self._last_notify_ts: dict[str, int] = {}
 
     def evaluate(
         self,
+        user_id: int,
         symbol: str,
         signal: Signal,
         last_price: float,
@@ -36,11 +37,11 @@ class RiskManager:
             return RiskDecision(False, "Max open positions reached", None)
 
         day_start = int(time.time()) - (int(time.time()) % 86400)
-        trades_today = self.store.list_trades_since(day_start)
+        trades_today = self.store.list_trades_since(user_id, day_start)
         if len(trades_today) >= config.max_trades_per_day:
             return RiskDecision(False, "Max trades per day reached", None)
 
-        pnl_pct = self.store.compute_daily_pnl_pct(day_start)
+        pnl_pct = self.store.compute_daily_pnl_pct(user_id, day_start)
         if pnl_pct <= -abs(config.max_daily_loss_pct):
             return RiskDecision(
                 False,

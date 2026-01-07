@@ -28,6 +28,8 @@ def settings_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="Symbols", callback_data="set_symbols")],
         [InlineKeyboardButton(text="Timeframe", callback_data="set_timeframe")],
         [InlineKeyboardButton(text="Risk", callback_data="set_risk")],
+        [InlineKeyboardButton(text="Connect Binance", callback_data="connect_binance")],
+        [InlineKeyboardButton(text="Connect MT5", callback_data="connect_mt5")],
         [InlineKeyboardButton(text="Back", callback_data="main_menu")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)

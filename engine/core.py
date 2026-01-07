@@ -6,7 +6,7 @@ import time
 from loguru import logger
 
 from adapters.base import BrokerAdapter
-from data.store import SQLiteStore
+from data.store import BaseStore
 from engine.idempotency import Idempotency
 from engine.models import OrderIntent
 from engine.state import EngineStateStore
@@ -21,18 +21,20 @@ class TradingEngine:
     def __init__(
         self,
         adapter: BrokerAdapter,
-        store: SQLiteStore,
+        store: BaseStore,
         config_service: ConfigService,
         notifier: Notifier,
         strategy: Strategy,
+        user_id: int,
     ) -> None:
         self.adapter = adapter
         self.store = store
         self.config_service = config_service
         self.notifier = notifier
         self.strategy = strategy
-        self.state_store = EngineStateStore(store)
-        self.idempotency = Idempotency(store)
+        self.user_id = user_id
+        self.state_store = EngineStateStore(store, user_id)
+        self.idempotency = Idempotency(store, user_id)
         self.risk = RiskManager(store)
         self._running = False
         self._last_error_notify_ts = 0
@@ -49,7 +51,7 @@ class TradingEngine:
         self._running = False
 
     async def run_once(self, chat_id: str | None = None) -> None:
-        config = self.config_service.load()
+        config = self.config_service.load(self.user_id)
         state = self.state_store.load()
         self._maybe_send_daily_summary(chat_id)
         if state.kill_switch:
@@ -60,7 +62,7 @@ class TradingEngine:
             return
 
         try:
-            positions = self.store.list_positions()
+            positions = self.store.list_positions(self.user_id)
             open_positions = [p for p in positions if p.get("qty") not in (0, 0.0)]
             for symbol in config.symbols:
                 candles = await self.adapter.fetch_candles(symbol, config.timeframe, limit=200)
@@ -78,6 +80,7 @@ class TradingEngine:
 
                 spread = await self.adapter.get_spread(symbol)
                 decision = self.risk.evaluate(
+                    user_id=self.user_id,
                     symbol=symbol,
                     signal=signal,
                     last_price=last_candle.close,
@@ -86,7 +89,7 @@ class TradingEngine:
                     spread=spread,
                 )
                 if not decision.allowed:
-                    self.store.add_risk_event(decision.reason or "risk blocked")
+                    self.store.add_risk_event(self.user_id, decision.reason or "risk blocked")
                     if decision.circuit_breaker:
                         self.state_store.update(kill_switch=1, paused=1)
                     if chat_id:
@@ -102,6 +105,7 @@ class TradingEngine:
                 )
                 fill = await self.adapter.place_order(intent)
                 self.store.add_trade(
+                    user_id=self.user_id,
                     symbol=fill.symbol,
                     side=fill.side,
                     qty=fill.qty,
@@ -110,18 +114,18 @@ class TradingEngine:
                     adapter=config.adapter,
                     order_id=fill.order_id,
                 )
-                existing = self.store.list_positions()
+                existing = self.store.list_positions(self.user_id)
                 pos = next((p for p in existing if p["symbol"] == fill.symbol), None)
                 if pos:
                     new_qty = pos["qty"] + (fill.qty if fill.side == "BUY" else -fill.qty)
                     if new_qty == 0:
-                        self.store.upsert_position(fill.symbol, 0.0, fill.price)
+                        self.store.upsert_position(self.user_id, fill.symbol, 0.0, fill.price)
                     else:
                         avg_price = ((pos["avg_price"] * pos["qty"]) + (fill.price * fill.qty)) / new_qty
-                        self.store.upsert_position(fill.symbol, new_qty, avg_price)
+                        self.store.upsert_position(self.user_id, fill.symbol, new_qty, avg_price)
                 else:
                     qty = fill.qty if fill.side == "BUY" else -fill.qty
-                    self.store.upsert_position(fill.symbol, qty, fill.price)
+                    self.store.upsert_position(self.user_id, fill.symbol, qty, fill.price)
 
                 if chat_id:
                     await self.notifier.send(chat_id, f"Trade executed: {fill.symbol} {fill.side} {fill.qty} @ {fill.price}")
@@ -144,5 +148,5 @@ class TradingEngine:
             return
         self._last_summary_day = day
         day_start = int(time.time()) - (int(time.time()) % 86400)
-        trades = self.store.list_trades_since(day_start)
+        trades = self.store.list_trades_since(self.user_id, day_start)
         asyncio.create_task(self.notifier.send(chat_id, f"Daily summary: {len(trades)} trades"))

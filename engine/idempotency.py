@@ -2,22 +2,23 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from data.store import SQLiteStore
+from data.store import BaseStore
 
 
 class Idempotency:
-    def __init__(self, store: SQLiteStore, max_keys: int = 100) -> None:
+    def __init__(self, store: BaseStore, user_id: int, max_keys: int = 100) -> None:
         self.store = store
+        self.user_id = user_id
         self.max_keys = max_keys
 
     def _load(self) -> list[str]:
-        keys = self.store.get_setting("IDEMPOTENCY_KEYS", [])
+        keys = self.store.get_setting(self.user_id, "IDEMPOTENCY_KEYS", [])
         if not isinstance(keys, list):
             return []
         return keys
 
     def _save(self, keys: list[str]) -> None:
-        self.store.set_setting("IDEMPOTENCY_KEYS", keys)
+        self.store.set_setting(self.user_id, "IDEMPOTENCY_KEYS", keys)
 
     def exists(self, key: str) -> bool:
         return key in self._load()

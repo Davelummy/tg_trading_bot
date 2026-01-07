@@ -3,11 +3,12 @@
 Production-grade Telegram control panel for a server-side trading engine that supports backtest, paper, and live trading on Binance Spot and MT5.
 
 ## Features
-- Admin-only Telegram UI with inline menus, confirmations, throttling
+- Telegram UI with inline menus, confirmations, throttling
 - Modes: BACKTEST, PAPER, LIVE
 - Adapters: Paper, Binance Spot, MT5
 - Restart-safe state, idempotency, kill switch, circuit breaker
 - Async notifier queue for alerts
+ - Multi-user: each Telegram user can configure their own adapter and credentials
 
 ## BotFather Setup
 1. Create a new bot in BotFather.
@@ -39,16 +40,22 @@ docker compose up --build
 3. Install Python 3.11+ and `pip install MetaTrader5` (Windows-only package).
 4. Run this bot on the same Windows machine (or expose a bridge).
 
-### Linux to Windows Bridge (Skeleton)
-- `adapters/mt5_bridge.py` expects an HTTP service that exposes:
-  - `GET /candles?symbol=EURUSD&tf=1m&limit=200`
-  - `GET /positions`
-  - `GET /spread?symbol=EURUSD`
-  - `POST /order`
-- Implement this in a Windows-side service or EA bridge, then use it as the adapter.
+## Neon (Postgres)
+- Set `DATABASE_URL` to your Neon connection string:
+  `postgresql://USER:PASSWORD@HOST/dbname?sslmode=require`
+- Leave `DATABASE_PATH` for local SQLite usage.
+- Set `ALLOW_ALL_USERS=true` to let any Telegram user configure their own account.
+
+## Credentials
+- Binance and MT5 credentials can be entered via Telegram (Settings → Connect).
+- Credentials are encrypted at rest if `CREDENTIAL_ENCRYPTION_KEY` is set.
+  Generate one with:
+  ```bash
+  python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+  ```
 
 ## Safety
-- Admin-only controls via `ADMIN_TELEGRAM_IDS`
+- Admin-only controls via `ADMIN_TELEGRAM_IDS` when `ALLOW_ALL_USERS=false`
 - Live confirmation required
 - Kill switch stored in DB and enforced by engine
 - Circuit breaker on max daily loss
